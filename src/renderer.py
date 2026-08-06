@@ -175,6 +175,16 @@ def _chinese_digest(item: NewsItem) -> str:
 
 
 def _topic_hint(item: NewsItem) -> str:
+    category_hints = {
+        "public_security": "公安法治、公共安全或社会治理方面的新动态",
+        "politics": "重要政策、政务部署或民生改革方面的新进展",
+        "finance": "财政政策、宏观经济或金融监管方面的新变化",
+        "technology": "科技创新、数字经济或产业升级方面的新进展",
+    }
+    category_hint = category_hints.get(item.category.casefold())
+    if category_hint:
+        return category_hint
+
     text = f"{item.title} {item.summary}".casefold()
     if any(
         keyword in text

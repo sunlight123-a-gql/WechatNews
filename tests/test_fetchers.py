@@ -11,6 +11,90 @@ from src.fetchers import Source, fetch_feed, parse_feed
 
 
 class FetcherTests(unittest.TestCase):
+    def test_fetch_html_news_page_keeps_dated_links_in_configured_section(self):
+        source = Source(
+            name="新华网时政",
+            url="https://www.news.cn/politics/",
+            category="politics",
+            format="html",
+        )
+        page = """
+        <html><body>
+          <a href="/politics/20260804/story-a/c.html">国务院部署新的民生政策</a>
+          <a href="/politics/20260803/story-b/c.html">昨天的政策新闻</a>
+          <a href="/legal/20260804/story-c/c.html">其他栏目新闻</a>
+          <a href="javascript:alert(1)">无效链接</a>
+        </body></html>
+        """.encode("utf-8")
+
+        class FakeHeaders:
+            def get_content_charset(self):
+                return "utf-8"
+
+        class FakeResponse:
+            url = source.url
+            headers = FakeHeaders()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return page
+
+        with patch("urllib.request.urlopen", return_value=FakeResponse()):
+            items = fetch_feed(source, timeout_seconds=5)
+
+        self.assertEqual([item.title for item in items], ["国务院部署新的民生政策", "昨天的政策新闻"])
+        self.assertEqual(items[0].category, "politics")
+        self.assertEqual(
+            items[0].published_at,
+            dt.datetime(2026, 8, 3, 16, 0, tzinfo=dt.timezone.utc),
+        )
+
+    def test_fetch_html_news_page_uses_image_date_and_allowed_subdomain(self):
+        source = Source(
+            name="中国警察网",
+            url="https://www.cpd.com.cn/",
+            category="public_security",
+            format="html",
+            allow_subdomains=True,
+        )
+        page = """
+        <a href="https://news.cpd.com.cn/n3559/826/t_123.html">
+          <img src="https://news.cpd.com.cn/n3559/826/W020260804123456.jpg" />
+          <span>公安机关开展夏季治安专项行动</span>
+        </a>
+        """.encode("utf-8")
+
+        class FakeHeaders:
+            def get_content_charset(self):
+                return "utf-8"
+
+        class FakeResponse:
+            url = source.url
+            headers = FakeHeaders()
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self):
+                return page
+
+        with patch("urllib.request.urlopen", return_value=FakeResponse()):
+            items = fetch_feed(source, timeout_seconds=5)
+
+        self.assertEqual([item.title for item in items], ["公安机关开展夏季治安专项行动"])
+        self.assertEqual(
+            items[0].published_at,
+            dt.datetime(2026, 8, 3, 16, 0, tzinfo=dt.timezone.utc),
+        )
+
     def test_parse_atom_feed_with_iso_datetime(self):
         xml = b"""<?xml version="1.0" encoding="utf-8"?>
         <feed xmlns="http://www.w3.org/2005/Atom">

@@ -235,6 +235,133 @@ class RankerTests(unittest.TestCase):
 
         self.assertEqual(selected, [verge_item])
 
+    def test_select_top_items_reserves_configured_topic_categories(self):
+        now = dt.datetime(2026, 8, 4, 2, 0, tzinfo=dt.timezone.utc)
+        items = [
+            NewsItem(
+                title="国务院部署重大政策改革和民生工作",
+                url="https://example.com/politics-1",
+                source="时政源",
+                published_at=now,
+                category="politics",
+            ),
+            NewsItem(
+                title="全国人大审议重要政策改革议题",
+                url="https://example.com/politics-2",
+                source="时政源",
+                published_at=now - dt.timedelta(minutes=1),
+                category="politics",
+            ),
+            NewsItem(
+                title="政协围绕民生政策改革开展协商",
+                url="https://example.com/politics-3",
+                source="时政源",
+                published_at=now - dt.timedelta(minutes=2),
+                category="politics",
+            ),
+            NewsItem(
+                title="外交工作会议部署政策改革任务",
+                url="https://example.com/politics-4",
+                source="时政源",
+                published_at=now - dt.timedelta(minutes=3),
+                category="politics",
+            ),
+            NewsItem(
+                title="公安部部署夏季治安行动",
+                url="https://example.com/security",
+                source="法治源",
+                published_at=now - dt.timedelta(hours=1),
+                category="public_security",
+            ),
+            NewsItem(
+                title="财政部公布年度预算安排",
+                url="https://example.com/finance",
+                source="财经源",
+                published_at=now - dt.timedelta(hours=1),
+                category="finance",
+            ),
+            NewsItem(
+                title="科技部发布人工智能创新规划",
+                url="https://example.com/technology",
+                source="科技源",
+                published_at=now - dt.timedelta(hours=1),
+                category="technology",
+            ),
+        ]
+
+        selected = select_top_items(
+            items,
+            keywords=["公安", "治安", "政策", "改革", "民生", "财政", "预算", "科技", "人工智能"],
+            exclude_keywords=[],
+            max_items=4,
+            lookback_hours=24,
+            now=now,
+            category_minimums={
+                "public_security": 1,
+                "politics": 1,
+                "finance": 1,
+                "technology": 1,
+            },
+        )
+
+        self.assertEqual(
+            {item.category for item in selected},
+            {"public_security", "politics", "finance", "technology"},
+        )
+
+    def test_select_top_items_deduplicates_similar_chinese_titles(self):
+        now = dt.datetime(2026, 8, 4, 2, 0, tzinfo=dt.timezone.utc)
+        older = NewsItem(
+            title="公安部部署夏季治安打击整治行动",
+            url="https://example.com/security-action-a",
+            source="来源甲",
+            published_at=now - dt.timedelta(minutes=10),
+            category="public_security",
+        )
+        newer = NewsItem(
+            title="公安部：部署夏季治安打击整治行动",
+            url="https://example.com/security-action-b",
+            source="来源乙",
+            published_at=now,
+            category="public_security",
+        )
+
+        selected = select_top_items(
+            [older, newer],
+            keywords=["公安", "治安"],
+            exclude_keywords=[],
+            max_items=5,
+            lookback_hours=24,
+            now=now,
+        )
+
+        self.assertEqual(selected, [newer])
+
+    def test_select_top_items_limits_one_category_from_dominating(self):
+        now = dt.datetime(2026, 8, 4, 2, 0, tzinfo=dt.timezone.utc)
+        items = [
+            NewsItem("人工智能芯片发布", "https://example.com/tech-1", "科技源", now, category="technology"),
+            NewsItem("航天科研任务完成", "https://example.com/tech-2", "科技源", now, category="technology"),
+            NewsItem("半导体产业技术升级", "https://example.com/tech-3", "科技源", now, category="technology"),
+            NewsItem("数字经济数据平台上线", "https://example.com/tech-4", "科技源", now, category="technology"),
+            NewsItem("国务院部署民生改革", "https://example.com/politics-1", "时政源", now, category="politics"),
+            NewsItem("全国人大审议法律草案", "https://example.com/politics-2", "时政源", now, category="politics"),
+            NewsItem("外交会议发布重要政策", "https://example.com/politics-3", "时政源", now, category="politics"),
+        ]
+
+        selected = select_top_items(
+            items,
+            keywords=["人工智能", "芯片", "航天", "科研", "半导体", "技术", "数字经济", "数据", "国务院", "民生", "改革", "全国人大", "法律", "外交", "会议", "政策"],
+            exclude_keywords=[],
+            max_items=4,
+            lookback_hours=24,
+            now=now,
+            category_maximums={"technology": 2},
+        )
+
+        self.assertEqual(sum(item.category == "technology" for item in selected), 2)
+        self.assertEqual(sum(item.category == "politics" for item in selected), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from typing import Iterable
 
 
@@ -23,6 +24,9 @@ class Source:
     url: str
     category: str = "general"
     enabled: bool = True
+    format: str = "feed"
+    article_path_prefix: str = ""
+    allow_subdomains: bool = False
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,9 @@ def fetch_all_sources(sources: Iterable[Source], timeout_seconds: int = 20) -> l
 
 
 def fetch_feed(source: Source, timeout_seconds: int = 20) -> list[NewsItem]:
+    if source.format.casefold() == "html":
+        return fetch_news_page(source, timeout_seconds=timeout_seconds)
+
     if source.url.startswith("gdelt://search"):
         request_url = _gdelt_request_url(source.url)
     else:
@@ -61,6 +68,70 @@ def fetch_feed(source: Source, timeout_seconds: int = 20) -> list[NewsItem]:
     if source.url.startswith("gdelt://search"):
         return parse_gdelt_articles(data, source)
     return parse_feed(data, source)
+
+
+def fetch_news_page(source: Source, timeout_seconds: int = 20) -> list[NewsItem]:
+    request = urllib.request.Request(source.url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        data = response.read()
+        final_url = response.url
+        charset = response.headers.get_content_charset() or "utf-8"
+
+    try:
+        page = data.decode(charset, errors="replace")
+    except LookupError:
+        page = data.decode("utf-8", errors="replace")
+
+    parser = _NewsPageLinkParser()
+    parser.feed(page)
+    source_url = urllib.parse.urlsplit(final_url)
+    source_path_prefix = source.article_path_prefix.strip().rstrip("/") or source_url.path.rstrip("/")
+    if not source.article_path_prefix and "." in source_path_prefix.rsplit("/", maxsplit=1)[-1]:
+        source_path_prefix = source_path_prefix.rsplit("/", maxsplit=1)[0] or "/"
+    items: list[NewsItem] = []
+    seen_urls: set[str] = set()
+
+    for href, raw_title, date_hint in parser.links:
+        article_url = urllib.parse.urljoin(final_url, href)
+        article_parts = urllib.parse.urlsplit(article_url)
+        if article_parts.scheme not in {"http", "https"}:
+            continue
+        source_host = (source_url.hostname or "").casefold()
+        article_host = (article_parts.hostname or "").casefold()
+        base_host = source_host.removeprefix("www.")
+        same_site = article_host == source_host or (
+            source.allow_subdomains
+            and (article_host == base_host or article_host.endswith("." + base_host))
+        )
+        if not same_site:
+            continue
+        if source_path_prefix and source_path_prefix != "/" and not article_parts.path.startswith(
+            source_path_prefix + "/"
+        ):
+            continue
+
+        published_at = _published_at_from_url(article_url)
+        if published_at is None and date_hint:
+            published_at = _published_at_from_url(urllib.parse.urljoin(final_url, date_hint))
+        title = _clean_space(html.unescape(raw_title))
+        normalized_url = urllib.parse.urlunsplit(
+            (article_parts.scheme, article_parts.netloc, article_parts.path, article_parts.query, "")
+        )
+        if published_at is None or len(title) < 4 or normalized_url in seen_urls:
+            continue
+
+        seen_urls.add(normalized_url)
+        items.append(
+            NewsItem(
+                title=title,
+                url=normalized_url,
+                source=source.name,
+                published_at=published_at,
+                category=source.category,
+            )
+        )
+
+    return items
 
 
 def parse_gdelt_articles(data: bytes, source: Source) -> list[NewsItem]:
@@ -221,6 +292,70 @@ def _atom_link(node: ET.Element, namespace: str | None) -> str:
 def _namespace(tag: str) -> str | None:
     if tag.startswith("{") and "}" in tag:
         return tag[1:].split("}", 1)[0]
+    return None
+
+
+class _NewsPageLinkParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[tuple[str, str, str | None]] = []
+        self._href: str | None = None
+        self._anchor_depth = 0
+        self._text_parts: list[str] = []
+        self._date_hint: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr_map = {name.casefold(): value for name, value in attrs if value}
+        if tag == "a":
+            if self._href is None:
+                self._href = attr_map.get("href")
+                self._text_parts = []
+                self._date_hint = None
+            self._anchor_depth += 1
+        elif tag == "img" and self._href:
+            alt = attr_map.get("alt") or attr_map.get("title")
+            if alt:
+                self._text_parts.append(alt)
+            if self._date_hint is None:
+                self._date_hint = attr_map.get("src") or attr_map.get("data-src")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "a" or self._anchor_depth == 0:
+            return
+        self._anchor_depth -= 1
+        if self._anchor_depth == 0:
+            if self._href:
+                self.links.append((self._href, " ".join(self._text_parts), self._date_hint))
+            self._href = None
+            self._text_parts = []
+            self._date_hint = None
+
+    def handle_data(self, data: str) -> None:
+        if self._href:
+            self._text_parts.append(data)
+
+
+def _published_at_from_url(url: str) -> dt.datetime | None:
+    path = urllib.parse.urlsplit(url).path
+    patterns = (
+        r"/(?:n1/)?(20\d{2})/(\d{2})(\d{2})/",
+        r"/(20\d{2})(\d{2})(\d{2})/",
+        r"W0(20\d{2})(\d{2})(\d{2})",
+        r"/(20\d{2})-(\d{2})/(\d{2})/",
+        r"/(20\d{2})/(\d{2})/(\d{2})/",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, path)
+        if match is None:
+            continue
+        try:
+            local_time = dt.datetime(
+                *(int(part) for part in match.groups()),
+                tzinfo=dt.timezone(dt.timedelta(hours=8)),
+            )
+        except ValueError:
+            return None
+        return local_time.astimezone(dt.timezone.utc)
     return None
 
 

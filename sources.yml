@@ -1,100 +1,56 @@
 sources:
-  - name: "OpenAI News"
-    url: "https://openai.com/news/rss.xml"
-    category: "ai"
+  - name: "人民网时政"
+    url: "http://politics.people.com.cn/GB/1024/index.html"
+    category: "politics"
+    format: "html"
+    article_path_prefix: "/n1/"
     enabled: true
 
-  - name: "Google AI Blog"
-    url: "https://blog.google/technology/ai/rss/"
-    category: "ai"
+  - name: "新华网时政"
+    url: "https://www.news.cn/politics/"
+    category: "politics"
+    format: "html"
     enabled: true
 
-  - name: "Microsoft AI News"
-    url: "https://news.microsoft.com/source/topics/ai/feed/"
-    category: "ai"
+  - name: "中国警察网"
+    url: "https://www.cpd.com.cn/"
+    category: "public_security"
+    format: "html"
+    allow_subdomains: true
     enabled: true
 
-  - name: "Unity Blog"
-    url: "https://unity.com/blog/feed"
-    category: "game"
+  - name: "人民网社会"
+    url: "http://society.people.com.cn/"
+    category: "public_security"
+    format: "html"
     enabled: true
 
-  - name: "GamesIndustry.biz"
-    url: "https://www.gamesindustry.biz/feed"
-    category: "game"
+  - name: "新华网法治"
+    url: "https://www.news.cn/legal/"
+    category: "public_security"
+    format: "html"
     enabled: true
 
-  - name: "VentureBeat AI"
-    url: "https://venturebeat.com/category/ai/feed/"
-    category: "ai"
+  - name: "人民网财经"
+    url: "http://finance.people.com.cn/"
+    category: "finance"
+    format: "html"
     enabled: true
 
-  - name: "VentureBeat Games"
-    url: "https://venturebeat.com/category/games/feed/"
-    category: "game"
+  - name: "新华网财经"
+    url: "https://www.news.cn/fortune/index.htm"
+    category: "finance"
+    format: "html"
     enabled: true
 
-  - name: "TechCrunch AI"
-    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
-    category: "ai"
+  - name: "IT之家"
+    url: "https://www.ithome.com/rss/"
+    category: "technology"
+    format: "feed"
     enabled: true
 
-  - name: "AI News"
-    url: "https://www.artificialintelligence-news.com/feed/"
-    category: "ai"
+  - name: "Solidot"
+    url: "https://www.solidot.org/index.rss"
+    category: "technology"
+    format: "feed"
     enabled: true
-
-  - name: "PocketGamer.biz"
-    url: "https://www.pocketgamer.biz/rss/"
-    category: "game"
-    enabled: true
-
-  - name: "Gematsu"
-    url: "https://www.gematsu.com/feed"
-    category: "game"
-    enabled: true
-
-  - name: "Eurogamer"
-    url: "https://www.eurogamer.net/feed"
-    category: "game"
-    enabled: true
-
-  - name: "TechCrunch"
-    url: "https://techcrunch.com/feed/"
-    category: "tech"
-    enabled: true
-
-  - name: "The Verge"
-    url: "https://www.theverge.com/rss/index.xml"
-    category: "tech"
-    enabled: true
-
-  - name: "Ars Technica"
-    url: "https://feeds.arstechnica.com/arstechnica/index"
-    category: "tech"
-    enabled: true
-
-  - name: "Wired"
-    url: "https://www.wired.com/feed/rss"
-    category: "tech"
-    enabled: true
-
-  - name: "Global Search AI"
-    url: "gdelt://search?query=(AI%20OR%20%22artificial%20intelligence%22%20OR%20%22generative%20AI%22)&category=ai&max_records=50&timespan=1d"
-    category: "ai"
-    enabled: false
-
-  - name: "Global Search AI Products"
-    url: "gdelt://search?query=(OpenAI%20OR%20Google%20AI%20OR%20Microsoft%20AI%20OR%20Anthropic%20OR%20Nvidia%20AI)&category=ai&max_records=50&timespan=1d"
-    category: "ai"
-    enabled: false
-
-  - name: "Global Search Gaming"
-    url: "gdelt://search?query=(gaming%20OR%20%22video%20game%22%20OR%20%22game%20industry%22%20OR%20Xbox%20OR%20PlayStation)&category=game&max_records=50&timespan=1d"
-    category: "game"
-    enabled: false
-
-  - name: "Global Search Game Development"
-    url: "gdelt://search?query=(Unity%20OR%20Unreal%20Engine%20OR%20%22game%20developer%22%20OR%20%22game%20studio%22)&category=game&max_records=50&timespan=1d"
-    category: "game"
-    enabled: false

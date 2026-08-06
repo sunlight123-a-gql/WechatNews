@@ -14,6 +14,76 @@ from src.main import main
 
 
 class MainArticleGenerationTests(unittest.TestCase):
+    def test_main_sends_generated_digest_when_requested(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = root / "config.yml"
+            sources = root / "sources.yml"
+            output = root / "output"
+            config.write_text(
+                textwrap.dedent(
+                    """
+                    title_template: "Public Affairs {date}"
+                    intro: "Today"
+                    max_items: 1
+                    lookback_hours: 24
+                    keywords:
+                      - policy
+                    exclude_keywords:
+                    article_generation:
+                      enabled: false
+                    email:
+                      enabled: false
+                      subject_template: "Daily Email {date}"
+                    wechat:
+                      create_draft: false
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+            sources.write_text(
+                textwrap.dedent(
+                    """
+                    sources:
+                      - name: Example
+                        url: https://example.com/feed.xml
+                        category: politics
+                        enabled: true
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+            item = NewsItem(
+                title="Policy update",
+                url="https://example.com/story",
+                source="Example",
+                published_at=None,
+                summary="Public policy update.",
+                category="politics",
+            )
+
+            with (
+                patch("src.main.fetch_all_sources", return_value=[item]),
+                patch("src.main.select_top_items", return_value=[item]),
+                patch("src.main.send_html_email") as send_html_email,
+            ):
+                exit_code = main(
+                    [
+                        "--config",
+                        str(config),
+                        "--sources",
+                        str(sources),
+                        "--output",
+                        str(output),
+                        "--send-email",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            send_html_email.assert_called_once()
+            self.assertIn("Policy update", send_html_email.call_args.args[0])
+            self.assertTrue(send_html_email.call_args.kwargs["subject"].startswith("Daily Email "))
+
     def test_main_renders_generated_articles_when_enabled(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -126,6 +196,12 @@ class MainArticleGenerationTests(unittest.TestCase):
                     fallback_keywords:
                       - technology
                       - software
+                    category_minimums:
+                      politics: 2
+                      technology: 1
+                    category_maximums:
+                      politics: 5
+                      technology: 4
                     exclude_keywords:
                     article_generation:
                       enabled: true
@@ -182,6 +258,14 @@ class MainArticleGenerationTests(unittest.TestCase):
             self.assertEqual(select_top_items.call_args.kwargs["minimum_items"], 5)
             self.assertEqual(select_top_items.call_args.kwargs["fallback_categories"], ["tech"])
             self.assertEqual(select_top_items.call_args.kwargs["fallback_keywords"], ["technology", "software"])
+            self.assertEqual(
+                select_top_items.call_args.kwargs["category_minimums"],
+                {"politics": 2, "technology": 1},
+            )
+            self.assertEqual(
+                select_top_items.call_args.kwargs["category_maximums"],
+                {"politics": 5, "technology": 4},
+            )
             self.assertEqual(list(generate_articles.call_args.args[0]), items)
 
     def test_main_auto_publishes_created_draft_when_enabled(self):

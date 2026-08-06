@@ -14,6 +14,7 @@ if __package__ in (None, ""):
 
 from src.article_writer import DeepSeekArticleClient, generate_articles
 from src.config_loader import load_yaml
+from src.email_sender import send_html_email
 from src.fetchers import Source, fetch_all_sources
 from src.ranker import select_top_items
 from src.renderer import render_articles_html, render_html
@@ -45,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
             url=str(source["url"]),
             category=str(source.get("category", "general")),
             enabled=bool(source.get("enabled", True)),
+            format=str(source.get("format", "feed")),
+            article_path_prefix=str(source.get("article_path_prefix", "")),
+            allow_subdomains=bool(source.get("allow_subdomains", False)),
         )
         for source in sources_config.get("sources", [])
     ]
@@ -61,10 +65,18 @@ def main(argv: list[str] | None = None) -> int:
         minimum_items=int(config.get("minimum_articles", 0)),
         fallback_categories=list(config.get("fallback_categories", [])),
         fallback_keywords=list(config.get("fallback_keywords", [])),
+        category_minimums={
+            str(category): int(minimum)
+            for category, minimum in dict(config.get("category_minimums", {})).items()
+        },
+        category_maximums={
+            str(category): int(maximum)
+            for category, maximum in dict(config.get("category_maximums", {})).items()
+        },
     )
 
-    title = render_title(str(config.get("title_template", "AI/Game Daily {date}")))
-    intro = str(config.get("intro", "A concise daily digest of AI and game industry updates."))
+    title = render_title(str(config.get("title_template", "Public Affairs Daily {date}")))
+    intro = str(config.get("intro", "A concise daily digest of public-affairs news."))
 
     article_config = config.get("article_generation", {})
     if bool(article_config.get("enabled", False)):
@@ -92,6 +104,18 @@ def main(argv: list[str] | None = None) -> int:
     html_path.write_text(html, encoding="utf-8")
     LOGGER.info("Wrote %s", html_path)
 
+    email_config = config.get("email", {})
+    send_email = args.send_email or bool(email_config.get("enabled", False))
+    if send_email:
+        if args.dry_run:
+            LOGGER.info("Email sending skipped in dry-run mode.")
+        else:
+            email_subject = render_title(
+                str(email_config.get("subject_template", "Public Affairs Daily {date}"))
+            )
+            send_html_email(html, subject=email_subject)
+            LOGGER.info("Sent email digest.")
+
     if args.dry_run or not bool(config.get("wechat", {}).get("create_draft", False)):
         LOGGER.info("Draft creation skipped.")
         return 0
@@ -101,11 +125,16 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a daily AI/game WeChat draft from public feeds.")
+    parser = argparse.ArgumentParser(description="Create a daily public-affairs news digest from public feeds.")
     parser.add_argument("--config", default="config.yml")
     parser.add_argument("--sources", default="sources.yml")
     parser.add_argument("--output", default="output")
-    parser.add_argument("--dry-run", action="store_true", help="Generate local artifacts without calling WeChat.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate local artifacts without sending email or calling WeChat.",
+    )
+    parser.add_argument("--send-email", action="store_true", help="Send the generated HTML digest by SMTP.")
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args(argv)
 
@@ -150,11 +179,11 @@ def create_wechat_draft(config: dict[str, Any], html: str) -> str:
             cover_path.write_bytes(base64.b64decode(DEFAULT_COVER_PNG_BASE64))
         thumb_media_id = upload_permanent_image(access_token, cover_path)
 
-    title = render_title(str(config.get("title_template", "AI/Game Daily {date}")))
+    title = render_title(str(config.get("title_template", "Public Affairs Daily {date}")))
     payload = build_draft_payload(
         title=title,
         author=str(wechat_config.get("author", "Auto")),
-        digest=str(wechat_config.get("digest", "Daily AI and game industry digest.")),
+        digest=str(wechat_config.get("digest", "Daily public-affairs news digest.")),
         html=html,
         thumb_media_id=thumb_media_id,
         source_url=str(wechat_config.get("source_url", "")),

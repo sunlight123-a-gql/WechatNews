@@ -1,77 +1,130 @@
-title_template: "AI/游戏行业观察 {date}"
-intro: "以下文章根据公开新闻原文整理和改写，聚焦事件背后的产业意义，并在标题下配原文图片。"
-max_items: 12
-minimum_articles: 5
+title_template: "公安·时政·财政·科技热点 {date}"
+intro: "聚合公开新闻源中的公安、时政、财政与科技热点，按发布时间、关键词相关度和领域覆盖进行筛选。"
+max_items: 16
+minimum_articles: 8
 lookback_hours: 36
 published_today_only: true
 timezone: "Asia/Shanghai"
 timeout_seconds: 20
 
+# DeepSeek 尚未启用时保持 false；启用后从 DEEPSEEK_API_KEY 环境变量读取密钥。
 article_generation:
-  enabled: true
+  enabled: false
   provider: "deepseek"
-  api_key: "sk-bf07435abbf84d24ab15688932295a11"
   model: "deepseek-chat"
-  max_articles: 5
+  max_articles: 8
   article_timeout_seconds: 20
   llm_timeout_seconds: 90
 
+email:
+  enabled: false
+  subject_template: "公安·时政·财政·科技热点 {date}"
+
 keywords:
-  - AI
-  - artificial intelligence
-  - OpenAI
-  - model
-  - game
-  - games
-  - gaming
-  - Unity
-  - Unreal
-  - Tencent
-  - NetEase
-  - mini game
-  - NPC
+  - 公安
+  - 公安部
+  - 警方
+  - 警务
+  - 警察
+  - 民警
+  - 交警
+  - 警情
+  - 派出所
+  - 巡逻
+  - 执法
+  - 抢险
+  - 治安
+  - 刑侦
+  - 反诈
+  - 网络安全
+  - 法治
+  - 法律
+  - 立法
+  - 检察
+  - 法院
+  - 纪检
+  - 监察
+  - 应急
+  - 救灾
+  - 犯罪
+  - 时政
+  - 中央
+  - 国家
+  - 全国
+  - 国务院
+  - 政策
+  - 改革
+  - 民生
+  - 外交
+  - 会议
+  - 部署
+  - 方案
+  - 规划
+  - 政务
+  - 全国人大
+  - 政协
+  - 财政
+  - 财政部
+  - 预算
+  - 税收
+  - 国债
+  - 专项债
+  - 金融
+  - 经济
+  - 科技
+  - 科技部
+  - 人工智能
+  - 芯片
+  - 半导体
+  - 航天
+  - 科研
+  - 数字经济
+  - 创新
+  - 软件
+  - 互联网
+  - 数据
+  - 信息技术
+
+# 在总榜中为四个领域各保留至少两条，剩余位置继续按热度得分填充。
+category_minimums:
+  public_security: 2
+  politics: 2
+  finance: 2
+  technology: 2
+
+category_maximums:
+  public_security: 5
+  politics: 5
+  finance: 5
+  technology: 5
 
 fallback_categories:
-  - tech
+  - public_security
+  - politics
+  - finance
+  - technology
 
 fallback_keywords:
-  - technology
-  - tech
-  - software
-  - hardware
-  - startup
-  - startups
-  - cloud
-  - chip
-  - chips
-  - semiconductor
-  - cybersecurity
-  - security
-  - smartphone
-  - device
-  - devices
-  - internet
-  - app
-  - apps
-  - Apple
-  - Google
-  - Microsoft
-  - Amazon
-  - Meta
-  - Nvidia
-  - Tesla
-  - robot
-  - robotics
+  - 法治
+  - 社会治理
+  - 应急管理
+  - 政务
+  - 发展
+  - 监管
+  - 产业
+  - 创新
 
 exclude_keywords:
-  - giveaway
-  - coupon
-  - unrelated
+  - 娱乐八卦
+  - 明星绯闻
+  - 彩票开奖
+  - 促销
+  - 广告
 
 wechat:
   create_draft: false
   auto_publish: false
-  author: "Auto"
-  digest: "Daily AI and game industry digest."
+  author: "热点观察"
+  digest: "公安、时政、财政与科技领域热点新闻摘要。"
   source_url: ""
   cover_image: "assets/default-cover.png"

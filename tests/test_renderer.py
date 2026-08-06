@@ -73,6 +73,20 @@ class RendererTests(unittest.TestCase):
         self.assertIn("原文链接", output)
         self.assertIn(">点击阅读原文</a>", output)
 
+    def test_render_html_describes_public_affairs_category(self):
+        item = NewsItem(
+            title="公安机关部署专项行动",
+            url="https://example.com/security",
+            source="法治新闻",
+            published_at=dt.datetime(2026, 8, 4, 1, 0, tzinfo=dt.timezone.utc),
+            summary="行动聚焦公共安全和社会治理。",
+            category="public_security",
+        )
+
+        output = render_html([item], title="热点新闻", intro="今日重点")
+
+        self.assertIn("公安法治、公共安全或社会治理", output)
+
     def test_render_articles_markdown_outputs_long_article_shape(self):
         article = GeneratedArticle(
             title="AI 工具链正在改变游戏制作",

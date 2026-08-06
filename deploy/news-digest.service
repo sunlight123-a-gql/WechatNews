@@ -1,0 +1,20 @@
+[Unit]
+Description=Daily public affairs news digest email
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=newsdigest
+Group=newsdigest
+WorkingDirectory=/opt/news-digest
+EnvironmentFile=/etc/news-digest.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/news-digest/.venv/bin/python src/main.py --config config.yml --sources sources.yml --output output --send-email
+TimeoutStartSec=10min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

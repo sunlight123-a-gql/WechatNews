@@ -97,7 +97,7 @@ def build_article_prompt(item: NewsItem, article_text: str) -> str:
         source_text = source_text[:9000]
 
     return f"""
-你是一名中文科技与游戏产业专栏作者。请根据下面的英文新闻内容，写一篇约500字的中文说明文或议论文。
+你是一名中文时政与公共事务新闻专栏作者。请根据下面的公开新闻内容，写一篇约500字的中文说明文或议论文。
 
 写作要求：
 1. 不要写来源、发布时间、作者、栏目名等流水账信息。
@@ -140,7 +140,7 @@ class DeepSeekArticleClient:
             "messages": [
                 {
                     "role": "system",
-                    "content": "你只输出中文正文，不输出免责声明、标题、项目符号或原文链接。",
+                    "content": "你只输出客观、克制的中文正文，不输出免责声明、标题、项目符号或原文链接。",
                 },
                 {"role": "user", "content": build_article_prompt(item, article_text)},
             ],

@@ -1,121 +1,156 @@
-# WeChat News Publisher
+# Public Affairs News Publisher
 
-Daily automation for collecting public AI/game news feeds and publishing a static digest website.
-
-The GitHub Actions workflow only generates the website for GitHub Pages. WeChat draft and publish support remains available for local runs or a fixed-IP server.
+Daily automation for collecting public Chinese news feeds and publishing a static digest website. The current configuration focuses on public security, politics, finance, and technology.
 
 ## What It Does
 
-1. GitHub Actions runs every day at 09:00 Asia/Shanghai.
-2. The script reads `sources.yml` and fetches RSS/Atom feeds.
-3. Items are filtered by `keywords`, deduplicated, ranked, and rendered to HTML.
-4. The workflow generates HTML output in dry-run mode, so it does not call WeChat APIs.
-5. The latest HTML file is published as the GitHub Pages homepage for `news.gongganghao.com`.
-6. Generated files are uploaded as a GitHub Actions artifact.
+1. Reads the verified RSS sources in `sources.yml`.
+2. Keeps news published today in the `Asia/Shanghai` timezone.
+3. Filters by topic keywords, removes duplicate events, and ranks matching items.
+4. Reserves at least two results for each configured topic category.
+5. Renders a static HTML digest for GitHub Pages.
+6. Can optionally rewrite selected stories with DeepSeek and create a WeChat draft.
 
-## Upload To GitHub
-
-Upload the contents of this folder as the repository root:
-
-```text
-.github/
-config.yml
-sources.yml
-src/
-tests/
-README.md
-requirements.txt
-```
-
-If you keep this folder inside another repository as a subfolder, move `.github/workflows/daily.yml` to the repository root and adjust the workflow commands.
-
-## GitHub Secrets
-
-GitHub Actions does not need WeChat secrets when it is only generating the website.
-
-For local runs or a fixed-IP server that should create/publish WeChat articles, configure these environment variables:
-
-```text
-WECHAT_APP_ID
-WECHAT_APP_SECRET
-```
-
-Optional:
-
-```text
-WECHAT_THUMB_MEDIA_ID
-```
-
-`WECHAT_THUMB_MEDIA_ID` is recommended. Create or upload a reusable cover image in the WeChat Official Account backend/API and put its media id here. If it is missing, the script tries to upload a tiny default cover image as permanent image material.
-
-Do not commit AppSecret, access tokens, cookies, QR codes, or account passwords.
-
-## WeChat Setup Notes
-
-WeChat publishing should run from a stable outbound IP that is in the WeChat Official Account IP whitelist. GitHub-hosted runner IPs can change, so the GitHub Actions workflow uses `--dry-run` and does not call WeChat APIs.
-
-The script uses the WeChat Official Account APIs for access token, permanent image material upload, draft creation, and optional publishing:
-
-- Access token: <https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/Get_access_token.html>
-- Draft box: <https://developers.weixin.qq.com/doc/offiaccount/Draft_Box/Add_draft.html>
-- Permanent material: <https://developers.weixin.qq.com/doc/offiaccount/Asset_Management/Adding_Permanent_Assets.html>
-- Publish: <https://developers.weixin.qq.com/doc/offiaccount/Publish/Publish.html>
-
-## Configure Sources
-
-Edit `sources.yml`:
-
-```yaml
-sources:
-  - name: "OpenAI News"
-    url: "https://openai.com/news/rss.xml"
-    category: "ai"
-    enabled: true
-```
-
-Use RSS or Atom feed URLs. Normal web pages are not parsed in this version.
-
-## Configure Ranking
-
-Edit `config.yml`:
-
-```yaml
-max_items: 12
-lookback_hours: 36
-keywords:
-  - AI
-  - game
-  - Unity
-exclude_keywords:
-  - giveaway
-```
-
-Items matching `exclude_keywords` are skipped. Items with more title/summary keyword matches rank higher.
+The default configuration does not call DeepSeek or WeChat, so it can be run immediately without API credentials.
 
 ## Run Locally
 
-From this folder:
+Python 3.11 or newer is recommended. This project uses only the Python standard library.
 
 ```bash
 python -m unittest discover -s tests -v
 python src/main.py --config config.yml --sources sources.yml --output output --dry-run
 ```
 
-The dry run writes `output/YYYY-MM-DD.html` without calling WeChat.
+The generated page is written to `output/YYYY-MM-DD.html`.
 
-## Enable Or Disable WeChat Publishing
+## News Sources
 
-In `config.yml`:
+`sources.yml` currently includes nine verified public sources from People.cn, XinhuaNet, China Police Daily, ITHome, and Solidot. The fetcher supports both RSS/Atom feeds and dated links from configured channel pages:
+
+- Politics
+- Public security, legal affairs, and society
+- Finance and economic policy
+- Technology and innovation
+
+Each source has a category used by the ranking rules. A source can be an RSS/Atom feed or a configured public channel page whose article links contain publication dates.
+
+## Topic Coverage
+
+The `category_minimums` section in `config.yml` controls minimum coverage:
+
+```yaml
+category_minimums:
+  public_security: 2
+  politics: 2
+  finance: 2
+  technology: 2
+```
+
+The remaining positions are filled by overall keyword score and publication time.
+`category_maximums` prevents one topic from dominating the digest; the default limit is five items per category.
+
+## Email Delivery
+
+Email delivery uses authenticated SMTP and is enabled explicitly with `--send-email`. Configure credentials only through environment variables:
+
+```text
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_SECURITY=ssl
+SMTP_USERNAME=sender@example.com
+SMTP_PASSWORD=your-smtp-authorization-code
+EMAIL_FROM=sender@example.com
+EMAIL_TO=recipient@example.com
+SMTP_TIMEOUT_SECONDS=30
+```
+
+Multiple recipients can be separated with commas or semicolons. Use an SMTP authorization code, not the mailbox login password. Run one manual delivery with:
+
+```bash
+python src/main.py --config config.yml --sources sources.yml --output output --send-email
+```
+
+`--dry-run` always skips email and WeChat calls.
+
+## Ubuntu 24.04 Server Deployment
+
+The files under `deploy/` define a dedicated service account, a one-shot service, and a daily 09:00 Asia/Shanghai timer. On a new server:
+
+```bash
+apt update
+apt install -y git python3 python3-venv
+useradd --system --home /opt/news-digest --create-home --shell /usr/sbin/nologin newsdigest
+git clone https://github.com/sunlight123-a-gql/WechatNews.git /opt/news-digest
+chown -R newsdigest:newsdigest /opt/news-digest
+sudo -u newsdigest python3 -m venv /opt/news-digest/.venv
+sudo -u newsdigest /opt/news-digest/.venv/bin/python -m unittest discover -s /opt/news-digest/tests -v
+install -o root -g newsdigest -m 0640 /opt/news-digest/deploy/news-digest.env.example /etc/news-digest.env
+install -o root -g root -m 0644 /opt/news-digest/deploy/news-digest.service /etc/systemd/system/news-digest.service
+install -o root -g root -m 0644 /opt/news-digest/deploy/news-digest.timer /etc/systemd/system/news-digest.timer
+```
+
+Edit `/etc/news-digest.env`, replace every example email value, then verify one delivery before enabling the timer:
+
+```bash
+nano /etc/news-digest.env
+systemctl daemon-reload
+systemctl start news-digest.service
+journalctl -u news-digest.service -n 100 --no-pager
+systemctl enable --now news-digest.timer
+systemctl list-timers news-digest.timer
+```
+
+To update the deployed code later:
+
+```bash
+cd /opt/news-digest
+sudo -u newsdigest git pull --ff-only
+sudo -u newsdigest .venv/bin/python -m unittest discover -s tests -v
+systemctl restart news-digest.service
+```
+
+## Optional DeepSeek Generation
+
+DeepSeek generation is disabled by default:
+
+```yaml
+article_generation:
+  enabled: false
+```
+
+To enable it, set the API key as an environment variable and change `enabled` to `true`:
+
+```text
+DEEPSEEK_API_KEY
+```
+
+Do not put API keys in `config.yml` or commit them to Git. `--dry-run` skips WeChat publishing but does not disable DeepSeek when article generation is enabled.
+
+## Optional WeChat Publishing
+
+For local runs or a fixed-IP server, configure:
+
+```text
+WECHAT_APP_ID
+WECHAT_APP_SECRET
+WECHAT_THUMB_MEDIA_ID
+```
+
+Then update `config.yml`:
 
 ```yaml
 wechat:
   create_draft: true
-  auto_publish: true
+  auto_publish: false
 ```
 
-Set `create_draft` to `false` if you only want artifacts and no WeChat API calls.
-Set `auto_publish` to `false` if you want the article to stop in the draft box instead of publishing to the public article list.
+Keep `auto_publish` disabled until drafts, article images, account permissions, and the outbound IP whitelist have been verified with the real account.
+
+## GitHub Actions
+
+The workflow runs daily at 09:00 Asia/Shanghai and on pushes to `main`. It runs tests, generates the digest in dry-run mode, and deploys the latest HTML file to GitHub Pages.
 
 ## Compliance Boundary
 
-This project does not automate login, bypass captcha, scrape private APIs, or reuse Douyin/Xiaohongshu cookies. Add those platforms only through official, authorized, or public feed/API sources.
+The project uses public RSS/Atom feeds and official APIs. It does not automate login, bypass captcha, reuse cookies, or access private platform APIs.

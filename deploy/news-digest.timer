@@ -1,0 +1,10 @@
+[Unit]
+Description=Send the public affairs news digest every morning
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 Asia/Shanghai
+Persistent=true
+Unit=news-digest.service
+
+[Install]
+WantedBy=timers.target
